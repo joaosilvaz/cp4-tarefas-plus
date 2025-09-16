@@ -23,27 +23,28 @@ const themeColors = {
 		background: "#fff",
 		text: "#000",
 		textSecondary: "#666",
-		primary: "#00B37E",
+		primary: "#DC2626",        
 		border: "#ddd",
 		inputBackground: "#f9f9f9",
-		button: "#007",
-		buttonText: "#fff",
+		button: "#000",        
+		buttonText: "#fff",       
 	},
 	dark: {
 		background: "#121212",
 		text: "#fff",
 		textSecondary: "#aaa",
-		primary: "#00B37E",
+		primary: "#EF4444",       
 		border: "#333",
 		inputBackground: "#1E1E1E",
-		button: "#59e067",
-		buttonText: "#000",
+		button: "#fff",         
+		buttonText: "#000",      
 	},
 };
 
+
 export const ThemeContext = createContext<ThemeContextType>({
 	theme: "light",
-	toggleTheme: () => {},
+	toggleTheme: () => { },
 	colors: themeColors.light,
 });
 

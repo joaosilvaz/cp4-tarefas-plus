@@ -8,6 +8,7 @@ import {
 	FlatList,
 	KeyboardAvoidingView,
 	Platform,
+	View,
 } from "react-native";
 import { useRouter } from "expo-router";
 import ItemLoja from "../src/components/ItemLoja";
@@ -47,10 +48,7 @@ export default function HomeScreen() {
 			router.replace("/");
 		} catch (error) {
 			console.error("Erro ao fazer logout:", error);
-			Alert.alert(
-				t("error") || "Erro",
-				t("logoutError") || "Erro ao fazer logout",
-			);
+			Alert.alert(t("error") || "Erro", t("logoutError") || "Erro ao fazer logout");
 		}
 	};
 
@@ -58,7 +56,7 @@ export default function HomeScreen() {
 		Alert.alert(
 			t("confirmDelete") || "Confirmar Exclusão",
 			t("confirmDeleteMessage") ||
-				"Tem certeza que deseja excluir sua conta? Essa ação não poderá ser desfeita.",
+			"Tem certeza que deseja excluir sua conta? Essa ação não poderá ser desfeita.",
 			[
 				{ text: t("cancel") || "Cancelar", style: "cancel" },
 				{
@@ -71,30 +69,31 @@ export default function HomeScreen() {
 								await deleteUser(currentUser);
 								Alert.alert(
 									t("accountDeleted") || "Conta Excluída",
-									t("accountDeletedMessage") ||
-										"Sua conta foi excluída com sucesso.",
+									t("accountDeletedMessage") || "Sua conta foi excluída com sucesso."
 								);
 								router.replace("/");
 							} else {
-								Alert.alert("Error", "Nenhu usuário logado");
+								Alert.alert("Error", "Nenhum usuário logado");
 							}
 						} catch (error) {
 							console.log("Erro ao excluir conta");
-							Alert.alert("Error", "Não foi possivel excluir a conta");
+							Alert.alert("Error", "Não foi possível excluir a conta");
 						}
 					},
 				},
-			],
+			]
 		);
 	};
+
 	const salvarItem = async () => {
 		try {
-			const docRef = await addDoc(collection(db, "tasks"), {
+			await addDoc(collection(db, "tasks"), {
 				nomeProduto: nomeProduto,
 				isChecked: false,
 			});
-			setNomeProduto(""); //Limpa o Text Input
-			Alert.alert("Sucesso", "Produto Salvo com Sucesso.");
+			setNomeProduto(""); // limpa o TextInput
+			Alert.alert("Sucesso", "Produto salvo com sucesso.");
+			await buscarTasks(); // 🔄 atualiza a lista após salvar
 		} catch (e) {
 			console.log("Erro ao criar o produto", e);
 		}
@@ -103,145 +102,160 @@ export default function HomeScreen() {
 	const buscarTasks = async () => {
 		try {
 			const querySnapshot = await getDocs(collection(db, "tasks"));
-			const tasks: any = [];
-
+			const tasks: Item[] = [];
 			querySnapshot.forEach((item) => {
 				tasks.push({
-					...item.data(),
+					...(item.data() as Omit<Item, "id">),
 					id: item.id,
 				});
 			});
 			setListaItems(tasks);
-			console.log("Tasks carregadas", tasks);
 		} catch (e) {
 			console.log("Erro ao carregar as tasks", e);
 		}
 	};
-	//Função para disparar a notificação local
+
+	// Notificação local
 	const dispararNotificacao = async () => {
 		await Notifications.scheduleNotificationAsync({
 			content: {
 				title: "Promoções do dia!",
 				body: "Aproveite as melhores ofertas!!",
 			},
-			trigger: {
-				type: "timeInterval", //tipo de trigger: intervalo de tempo
-				seconds: 2, //aguarda 02 segundos para disparar
-				repeats: false,
-			} as Notifications.TimeIntervalTriggerInput,
+			trigger: { type: "timeInterval", seconds: 2, repeats: false } as Notifications.TimeIntervalTriggerInput,
 		});
 	};
 
-	const registerForPushNotificationsAsync = async (): Promise<
-		string | null
-	> => {
-		try {
-			const tokenData = await Notifications.getExpoPushTokenAsync();
-			const token = tokenData.data;
-			console.log("Token gerado com sucesso: ", token);
-			return token;
-		} catch (error) {
-			console.log("Error ao gerar token", error);
-			return null;
-		}
-	};
 	useEffect(() => {
-		//Ficar escutando se houve recebimento de notificação
-		const subscription = Notifications.addNotificationReceivedListener(
-			(notification) => {
-				console.log("Notificação recebida: ", notification);
-			},
-		);
-		//Função de limpeza que irá ser chamada quando for desfeito
-		//Remove o listener para evitar multiplas chamadas.
-		return () => subscription.remove();
+		const sub = Notifications.addNotificationReceivedListener((notification) => {
+			console.log("Notificação recebida: ", notification);
+		});
+		return () => sub.remove();
 	}, []);
 
 	useEffect(() => {
-		//Solicitar a permissão das notificações do aparelho
 		(async () => {
-			//Verificar o status da permissão de notificação do dispositivo
-			const { status: existingStatus } =
-				await Notifications.getPermissionsAsync();
-			let finalStatus = existingStatus;
-
-			//Solicita a permissão das notificações do dispositivo
+			const { status: existingStatus } = await Notifications.getPermissionsAsync();
 			if (existingStatus !== "granted") {
-				const { status } = await Notifications.requestPermissionsAsync();
-				finalStatus = status;
+				await Notifications.requestPermissionsAsync();
 			}
 		})();
 	}, []);
 
 	useEffect(() => {
 		buscarTasks();
-	}, [listaItems]);
+	}, []);
 
 	return (
-		<SafeAreaView
-			style={[styles.container, { backgroundColor: colors.background }]}
-		>
-			<KeyboardAvoidingView //Componente que se ajuste automaticamente o layout
+		<SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+			<KeyboardAvoidingView
 				style={styles.container}
 				behavior={Platform.OS === "ios" ? "padding" : "height"}
-				keyboardVerticalOffset={20} //descoloca o conteúdo em 20px
+				keyboardVerticalOffset={20}
 			>
-				<Text style={[{ color: colors.text }]}>
-					Seja bem-vindo, vc está logado!!!
+				<Text style={[styles.welcome, { color: colors.text }]}>
+					Seja bem-vindo, você está logado!
 				</Text>
-				<ThemeToggleButton />
-				<Button title="Realizar logoff" onPress={realizarLogoff} />
-				<Button
-					title="Alterar Senha"
-					color="orange"
-					onPress={() => router.push("/AlterarSenhaScreen")}
-				/>
-				<Button title="Excluir" color="red" onPress={excluirConta} />
-				<Button
-					title="Disparar notificação"
-					color="purple"
-					onPress={dispararNotificacao}
+
+				{/* Input */}
+				<TextInput
+					placeholder="Digite o nome do produto"
+					placeholderTextColor="#6B7280"
+					style={[
+						styles.input,
+						{
+							backgroundColor: "lightgray",
+							color: colors.text,
+						},
+					]}
+					value={nomeProduto}
+					onChangeText={setNomeProduto}
+					onSubmitEditing={salvarItem}
+					returnKeyType="done"
 				/>
 
+				{/* Lista */}
 				{listaItems.length <= 0 ? (
 					<ActivityIndicator />
 				) : (
 					<FlatList
 						data={listaItems}
-						renderItem={({ item }) => {
-							return (
-								<ItemLoja
-									nomeProduto={item.nomeProduto}
-									isChecked={item.isChecked}
-									id={item.id}
-								/>
-							);
-						}}
+						keyExtractor={(item) => item.id}
+						contentContainerStyle={{ paddingVertical: 8 }}
+						renderItem={({ item }) => (
+							<ItemLoja
+								nomeProduto={item.nomeProduto}
+								isChecked={item.isChecked}
+								id={item.id}
+							/>
+						)}
 					/>
 				)}
+				{/* Ações / Botões */}
+				<View style={styles.actions}>
 
-				<TextInput
-					placeholder="Digite o nome produto"
-					style={styles.input}
-					value={nomeProduto}
-					onChangeText={(value) => setNomeProduto(value)}
-					onSubmitEditing={salvarItem}
-				/>
+
+					{/* Grupo de botões com espaçamento */}
+					<View style={styles.buttonGroup}>
+						<View style={styles.buttonItem}>
+							<Button title="Realizar logoff" onPress={realizarLogoff} />
+						</View>
+
+						<View style={styles.buttonItem}>
+							<Button
+								title="Alterar Senha"
+								color="orange"
+								onPress={() => router.push("/AlterarSenhaScreen")}
+							/>
+						</View>
+
+						<View style={styles.buttonItem}>
+							<Button title="Excluir" color="red" onPress={excluirConta} />
+						</View>
+
+						<View style={styles.buttonItem}>
+							<Button
+								title="Disparar notificação"
+								color="purple"
+								onPress={dispararNotificacao}
+							/>
+						</View>
+					</View>
+				</View>
+
+
+				<ThemeToggleButton />
+
 			</KeyboardAvoidingView>
 		</SafeAreaView>
 	);
 }
 
 const styles = StyleSheet.create({
-	container: {
-		flex: 1,
+	container: { flex: 1, padding: 20 },
+	welcome: {
+		marginBottom: 12,
+		fontSize: 26,
+		textAlign: "center",
+		fontWeight: "600"
+	},
+	actions: {
+		marginBottom: 16
+	},
+	buttonGroup: {
+		marginTop: 10,
+		width: "100%",
+	},
+	buttonItem: {
+		marginVertical: 6,
+		borderRadius: 40
 	},
 	input: {
-		backgroundColor: "lightgray",
-		width: "90%",
+		width: "100%",
 		alignSelf: "center",
-		marginTop: "auto",
+		marginTop: 16,
 		borderRadius: 10,
-		paddingLeft: 20,
+		paddingHorizontal: 16,
+		paddingVertical: 12,
 	},
 });

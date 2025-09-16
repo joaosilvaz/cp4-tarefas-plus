@@ -25,13 +25,19 @@ import { useTranslation } from "react-i18next";
 
 export default function LoginScreen() {
     const { t, i18n } = useTranslation();
-    const { colors } = useTheme();
     const { user, loading: authLoading } = useAuth();
     const router = useRouter();
 
     const [email, setEmail] = useState("");
     const [senha, setSenha] = useState("");
     const [loading, setLoading] = useState(false);
+    const { theme, colors } = useTheme();
+    const isLight = theme === "light";
+
+    const flagBtnStyle = {
+        backgroundColor: isLight ? "#222222" : "#fff",
+        borderColor: isLight ? "#fff" : "#E5E7EB",
+    };
 
     // Redireciona se o usuário já está logado
     useEffect(() => {
@@ -232,7 +238,7 @@ export default function LoginScreen() {
                     <View style={styles.languageContainer}>
                         <TouchableOpacity
                             onPress={() => mudarIdioma("en")}
-                            style={[styles.langIconBtn, styles.langShadow]}
+                            style={[styles.langIconBtn, styles.langShadow, flagBtnStyle]}
                             accessibilityLabel="Switch to English"
                         >
                             <Text style={styles.flag}>🇺🇸</Text>
@@ -240,13 +246,13 @@ export default function LoginScreen() {
 
                         <TouchableOpacity
                             onPress={() => mudarIdioma("pt")}
-                            style={[styles.langIconBtn, styles.langShadow]}
+                            style={[styles.langIconBtn, styles.langShadow, flagBtnStyle]}
                             accessibilityLabel="Mudar para Português"
                         >
                             <Text style={styles.flag}>🇧🇷</Text>
                         </TouchableOpacity>
                     </View>
-                    d
+
 
                     <ThemeToggleButton />
 
@@ -271,7 +277,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        padding: 20,
+        padding: 25,
     },
     centered: {
         justifyContent: "center",
@@ -287,7 +293,7 @@ const styles = StyleSheet.create({
     },
     header: {
         alignItems: "center",
-        marginBottom: 40,
+        marginBottom: 30,
     },
     titulo: {
         fontSize: 32,
@@ -312,12 +318,12 @@ const styles = StyleSheet.create({
     },
     input: {
         borderRadius: 12,
-        padding: 16,
+        padding: 13,
         fontSize: 16,
         borderWidth: 1.5,
     },
     botao: {
-        padding: 16,
+        padding: 13,
         borderRadius: 12,
         alignItems: "center",
         marginBottom: 20,

@@ -17,12 +17,19 @@ import { useRouter } from "expo-router";
 import { useAuth } from "../src/context/AuthContext";
 import { useTheme } from "../src/context/ThemeContext";
 import { useTranslation } from "react-i18next";
+import ThemeToggleButton from "../src/components/ThemeToggleButton";
 
 export default function CadastroScreen() {
-    const { t, i18n } = useTranslation();
-    const { colors } = useTheme();
     const { setUser } = useAuth();
     const router = useRouter();
+    const { t, i18n } = useTranslation();
+    const { theme, colors } = useTheme();
+    const isLight = theme === "light";
+
+    const flagBtnStyle = {
+        backgroundColor: isLight ? "#222222" : "#fff",
+        borderColor: isLight ? "#fff" : "#222222",
+    };
 
     // Estados para armazenar os valores digitados
     const [nome, setNome] = useState("");
@@ -35,7 +42,7 @@ export default function CadastroScreen() {
     const mudarIdioma = (lang: string) => {
         i18n.changeLanguage(lang);
     };
-    
+
     // Função para validar os dados
     const validarDados = () => {
         if (!nome.trim()) {
@@ -77,7 +84,6 @@ export default function CadastroScreen() {
             );
             return false;
         }
-
         return true;
     };
 
@@ -278,25 +284,27 @@ export default function CadastroScreen() {
                         />
                     </View>
                 </View>
-                {/* Botões de Idioma (com emoji) */}
-                <View style={styles.languageContainer}>
+                <View style={styles.languageContainer} key={theme}>
                     <TouchableOpacity
                         onPress={() => mudarIdioma("en")}
-                        style={[styles.langIconBtn, styles.langShadow]}
+                        style={[styles.langIconBtn, styles.langShadow, flagBtnStyle]}
                         accessibilityLabel="Switch to English"
+                        activeOpacity={0.8}
                     >
                         <Text style={styles.flag}>🇺🇸</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
                         onPress={() => mudarIdioma("pt")}
-                        style={[styles.langIconBtn, styles.langShadow]}
+                        style={[styles.langIconBtn, styles.langShadow, flagBtnStyle]}
                         accessibilityLabel="Mudar para Português"
+                        activeOpacity={0.8}
                     >
                         <Text style={styles.flag}>🇧🇷</Text>
                     </TouchableOpacity>
                 </View>
-
+                
+                <ThemeToggleButton />
 
                 {/* Link para Login */}
                 <View style={styles.footer}>
@@ -317,7 +325,7 @@ export default function CadastroScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        padding: 20,
+        padding: 25,
     },
     scrollContainer: {
         flexGrow: 1,
@@ -325,7 +333,7 @@ const styles = StyleSheet.create({
     },
     header: {
         alignItems: "center",
-        marginBottom: 40,
+        marginBottom: 30,
     },
     titulo: {
         fontSize: 32,
@@ -338,7 +346,7 @@ const styles = StyleSheet.create({
         textAlign: "center",
     },
     form: {
-        marginBottom: 30,
+        marginBottom: 20,
     },
     inputContainer: {
         marginBottom: 20,
@@ -350,15 +358,15 @@ const styles = StyleSheet.create({
     },
     input: {
         borderRadius: 12,
-        padding: 16,
+        padding: 13,
         fontSize: 16,
         borderWidth: 1.5,
     },
     botao: {
-        padding: 16,
+        padding: 13,
         borderRadius: 12,
         alignItems: "center",
-        marginBottom: 20,
+        marginBottom: 10,
     },
     textoBotao: {
         color: "#fff",
@@ -368,7 +376,7 @@ const styles = StyleSheet.create({
     divider: {
         flexDirection: "row",
         alignItems: "center",
-        marginVertical: 20,
+        marginVertical: 10,
     },
     dividerLine: {
         flex: 1,
@@ -381,7 +389,7 @@ const styles = StyleSheet.create({
     languageContainer: {
         flexDirection: "row",
         justifyContent: "center",
-        marginBottom: 16,
+        marginBottom: 10,
         gap: 12,
     },
     langIconBtn: {
@@ -390,9 +398,7 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: "#fff",
         borderWidth: 1,
-        borderColor: "#E5E7EB",
     },
     langShadow: {
         shadowColor: "#000",

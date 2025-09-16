@@ -24,12 +24,12 @@ import {
 } from "firebase/auth";
 
 const firebaseConfig = {
-	apiKey: "AIzaSyApt2eNCjjJfBLXKZ6vISGULooL1utqtt4",
-	authDomain: "cp4-mobile-edf77.firebaseapp.com",
-	projectId: "cp4-mobile-edf77",
-	storageBucket: "cp4-mobile-edf77.firebasestorage.app",
-	messagingSenderId: "181725761123",
-	appId: "1:181725761123:web:00a1ec0fb2916866fc7256",
+	apiKey: "AIzaSyDsm4GYknDAkMYzAdn8JS-_TX2hRJcbb-Y",
+	authDomain: "cp4-mobile-fd837.firebaseapp.com",
+	projectId: "cp4-mobile-fd837",
+	storageBucket: "cp4-mobile-fd837.firebasestorage.app",
+	messagingSenderId: "870502752857",
+	appId: "1:870502752857:web:674122dc5c0722587a4748"
 };
 
 // Initialize Firebase
