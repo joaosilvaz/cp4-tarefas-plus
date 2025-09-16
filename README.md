@@ -68,7 +68,10 @@ npx expo install
 
 ## 👨‍💻 Autores
 João Vitor da Silva Nascimento RM554694 
-Fernando Henrique Aguiar RM
-Rafael
+
+Fernando Henrique Aguiar RM557525
+
+Rafael Macoto Magalhães Seo RM554992
+
 
 FIAP 
