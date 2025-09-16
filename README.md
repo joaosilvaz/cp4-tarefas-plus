@@ -58,7 +58,7 @@
 
 ---
 
-## 🚀🚀 Como rodar localmente
+## 🚀 Como rodar localmente
 
 Instalar dependências
 
