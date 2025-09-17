@@ -3,10 +3,17 @@
     "name": "cp4-tarefas-plus",
     "slug": "cp4-tarefas-plus",
     "scheme": "cp4tarefasplus",
-    "android": { "package": "com.joaov.cp4tarefasplus" },
-    "ios": { "bundleIdentifier": "com.joaov.cp4tarefasplus" },
+    "android": {
+      "package": "com.joaov.cp4tarefasplus"
+    },
+    "ios": {
+      "bundleIdentifier": "com.joaov.cp4tarefasplus"
+    },
     "extra": {
-      "googleWebClientId": "870502752857-i2ntk1es392la0cr9v9jgdm0j0gdfius.apps.googleusercontent.com"
+      "googleWebClientId": "870502752857-i2ntk1es392la0cr9v9jgdm0j0gdfius.apps.googleusercontent.com",
+      "eas": {
+        "projectId": "ba36a9c4-0c78-4ae3-b4a5-c08d08e9cf36"
+      }
     }
   }
 }

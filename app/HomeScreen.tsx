@@ -111,7 +111,7 @@ export default function HomeScreen() {
 
 			const tTitle = title.trim();
 			const desc = description.trim();
-			const iso = toIsoZ(dueDate); // sua função que transforma "YYYY-MM-DD HH:mm" em ISO
+			const iso = toIsoZ(dueDate); // "YYYY-MM-DD HH:mm" -> ISO
 
 			if (!tTitle || !desc || !iso) {
 				return Alert.alert(
@@ -130,6 +130,16 @@ export default function HomeScreen() {
 				updatedAt: serverTimestamp(),
 			});
 
+			await Notifications.scheduleNotificationAsync({
+				content: {
+					title: "Tarefa criada",
+					body: `“${tTitle}” agendada para ${new Date(iso).toLocaleString()}`,
+				},
+				trigger: null, // dispara na hora
+			});
+
+
+			// ⏰ Lembrete no horário da tarefa (permanece)
 			await scheduleTaskReminder(tTitle, iso);
 
 			setTitle("");
@@ -140,6 +150,7 @@ export default function HomeScreen() {
 			Alert.alert("Erro", "Não foi possível salvar a tarefa.");
 		}
 	};
+
 
 	useEffect(() => {
 		const sub = Notifications.addNotificationReceivedListener((n) =>
