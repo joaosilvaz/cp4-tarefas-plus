@@ -22,6 +22,7 @@ import { useAuth } from "../src/context/AuthContext";
 import { useTheme } from "../src/context/ThemeContext";
 import ThemeToggleButton from "../src/components/ThemeToggleButton";
 import { useTranslation } from "react-i18next";
+import GoogleButton from "../src/components/GoogleButton";
 
 export default function LoginScreen() {
     const { t, i18n } = useTranslation();
@@ -218,6 +219,8 @@ export default function LoginScreen() {
                             style={[styles.dividerLine, { backgroundColor: colors.border }]}
                         />
                     </View>
+
+                    <GoogleButton />
 
                     {/* Link Esqueceu Senha */}
                     <TouchableOpacity

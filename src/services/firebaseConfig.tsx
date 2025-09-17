@@ -9,7 +9,7 @@ import {
 	deleteDoc,
 } from "firebase/firestore";
 import {
-	getAuth,
+	initializeAuth,
 	signInWithCredential,
 	signInWithEmailAndPassword,
 	createUserWithEmailAndPassword,
@@ -37,7 +37,7 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 // Initialize Auth - usar getAuth para evitar warnings de persistência
-const auth: Auth = getAuth(app);
+const auth: Auth = initializeAuth(app);
 
 export {
 	auth,

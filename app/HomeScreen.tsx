@@ -1,46 +1,33 @@
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
-	Text,
-	Button,
-	TextInput,
-	StyleSheet,
-	ActivityIndicator,
-	FlatList,
-	KeyboardAvoidingView,
-	Platform,
-	View,
+	Text, TextInput, StyleSheet, ActivityIndicator, FlatList,
+	KeyboardAvoidingView, Platform, View, Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
 import ItemLoja from "../src/components/ItemLoja";
 import { useEffect, useState } from "react";
-import { Alert } from "react-native";
 import { deleteUser } from "firebase/auth";
-import {
-	auth,
-	db,
-	addDoc,
-	collection,
-	getDocs,
-} from "../src/services/firebaseConfig";
+import ThemedButton from "../src/components/ThemedButton";
+import { auth, addDoc } from "../src/services/firebaseConfig";
+import { userTasksCol } from "../src/services/firestorePaths";
 import { useAuth } from "../src/context/AuthContext";
 import ThemeToggleButton from "../src/components/ThemeToggleButton";
 import { useTheme } from "../src/context/ThemeContext";
 import { useTranslation } from "react-i18next";
 import * as Notifications from "expo-notifications";
+import { onSnapshot, query, orderBy } from "firebase/firestore";
+
+type Item = { id: string; nomeProduto: string; isChecked: boolean };
 
 export default function HomeScreen() {
 	const { t } = useTranslation();
 	const { colors } = useTheme();
 	const { user, signOut } = useAuth();
 	const router = useRouter();
-	const [nomeProduto, setNomeProduto] = useState("");
 
-	interface Item {
-		id: string;
-		nomeProduto: string;
-		isChecked: boolean;
-	}
+	const [nomeProduto, setNomeProduto] = useState("");
 	const [listaItems, setListaItems] = useState<Item[]>([]);
+	const [loadingList, setLoadingList] = useState(true);
 
 	const realizarLogoff = async () => {
 		try {
@@ -87,63 +74,63 @@ export default function HomeScreen() {
 
 	const salvarItem = async () => {
 		try {
-			await addDoc(collection(db, "tasks"), {
-				nomeProduto: nomeProduto,
+			const uid = auth.currentUser?.uid;
+			if (!uid) return Alert.alert("Erro", "Usuário não autenticado.");
+			const nome = nomeProduto.trim();
+			if (!nome) return;
+
+			await addDoc(userTasksCol(uid), {
+				userId: uid,
+				nomeProduto: nome,
 				isChecked: false,
+				createdAt: Date.now(),
 			});
-			setNomeProduto(""); // limpa o TextInput
-			Alert.alert("Sucesso", "Produto salvo com sucesso.");
-			await buscarTasks(); // 🔄 atualiza a lista após salvar
-		} catch (e) {
-			console.log("Erro ao criar o produto", e);
-		}
-	};
 
-	const buscarTasks = async () => {
-		try {
-			const querySnapshot = await getDocs(collection(db, "tasks"));
-			const tasks: Item[] = [];
-			querySnapshot.forEach((item) => {
-				tasks.push({
-					...(item.data() as Omit<Item, "id">),
-					id: item.id,
-				});
-			});
-			setListaItems(tasks);
-		} catch (e) {
-			console.log("Erro ao carregar as tasks", e);
+			setNomeProduto("");
+		} catch (e: any) {
+			console.log("Erro ao salvar:", e?.code ?? e?.message ?? e);
+			Alert.alert("Erro", "Não foi possível salvar o item.");
 		}
-	};
-
-	// Notificação local
-	const dispararNotificacao = async () => {
-		await Notifications.scheduleNotificationAsync({
-			content: {
-				title: "Promoções do dia!",
-				body: "Aproveite as melhores ofertas!!",
-			},
-			trigger: { type: "timeInterval", seconds: 2, repeats: false } as Notifications.TimeIntervalTriggerInput,
-		});
 	};
 
 	useEffect(() => {
-		const sub = Notifications.addNotificationReceivedListener((notification) => {
-			console.log("Notificação recebida: ", notification);
-		});
+		const sub = Notifications.addNotificationReceivedListener((n) =>
+			console.log("Notificação recebida: ", n)
+		);
 		return () => sub.remove();
 	}, []);
-
 	useEffect(() => {
 		(async () => {
-			const { status: existingStatus } = await Notifications.getPermissionsAsync();
-			if (existingStatus !== "granted") {
-				await Notifications.requestPermissionsAsync();
-			}
+			const { status } = await Notifications.getPermissionsAsync();
+			if (status !== "granted") await Notifications.requestPermissionsAsync();
 		})();
 	}, []);
 
 	useEffect(() => {
-		buscarTasks();
+		const uid = auth.currentUser?.uid;
+		if (!uid) return;
+
+		const q = query(userTasksCol(uid), orderBy("createdAt", "desc"));
+		const unsub = onSnapshot(
+			q,
+			(snap) => {
+				const tasks: Item[] = snap.docs.map((d) => {
+					const data = d.data() as any;
+					return {
+						id: d.id,
+						nomeProduto: String(data?.nomeProduto ?? ""),
+						isChecked: Boolean(data?.isChecked),
+					};
+				});
+				setListaItems(tasks);
+				setLoadingList(false);
+			},
+			(err) => {
+				console.log("onSnapshot error", err);
+				setLoadingList(false);
+			}
+		);
+		return () => unsub();
 	}, []);
 
 	return (
@@ -157,25 +144,17 @@ export default function HomeScreen() {
 					Seja bem-vindo, você está logado!
 				</Text>
 
-				{/* Input */}
 				<TextInput
 					placeholder="Digite o nome do produto"
 					placeholderTextColor="#6B7280"
-					style={[
-						styles.input,
-						{
-							backgroundColor: "lightgray",
-							color: colors.text,
-						},
-					]}
+					style={[styles.input, { backgroundColor: "lightgray", color: colors.text }]}
 					value={nomeProduto}
 					onChangeText={setNomeProduto}
 					onSubmitEditing={salvarItem}
 					returnKeyType="done"
 				/>
 
-				{/* Lista */}
-				{listaItems.length <= 0 ? (
+				{loadingList ? (
 					<ActivityIndicator />
 				) : (
 					<FlatList
@@ -184,72 +163,54 @@ export default function HomeScreen() {
 						contentContainerStyle={{ paddingVertical: 8 }}
 						renderItem={({ item }) => (
 							<ItemLoja
+								id={item.id}
 								nomeProduto={item.nomeProduto}
 								isChecked={item.isChecked}
-								id={item.id}
 							/>
 						)}
 					/>
 				)}
-				{/* Ações / Botões */}
+
 				<View style={styles.actions}>
-
-
-					{/* Grupo de botões com espaçamento */}
 					<View style={styles.buttonGroup}>
 						<View style={styles.buttonItem}>
-							<Button title="Realizar logoff" onPress={realizarLogoff} />
+							<ThemedButton title="Realizar logoff" onPress={realizarLogoff} />
 						</View>
-
 						<View style={styles.buttonItem}>
-							<Button
+							<ThemedButton
 								title="Alterar Senha"
-								color="orange"
 								onPress={() => router.push("/AlterarSenhaScreen")}
 							/>
 						</View>
-
 						<View style={styles.buttonItem}>
-							<Button title="Excluir" color="red" onPress={excluirConta} />
+							<ThemedButton title="Excluir" onPress={excluirConta} />
 						</View>
-
 						<View style={styles.buttonItem}>
-							<Button
+							<ThemedButton
 								title="Disparar notificação"
-								color="purple"
-								onPress={dispararNotificacao}
+								onPress={async () =>
+									Notifications.scheduleNotificationAsync({
+										content: { title: "Promoções do dia!", body: "Aproveite as melhores ofertas!!" },
+										trigger: { type: "timeInterval", seconds: 2, repeats: false } as Notifications.TimeIntervalTriggerInput,
+									})
+								}
 							/>
 						</View>
 					</View>
 				</View>
-
-
-				<ThemeToggleButton />
-
 			</KeyboardAvoidingView>
+
+			<ThemeToggleButton />
 		</SafeAreaView>
 	);
 }
 
 const styles = StyleSheet.create({
 	container: { flex: 1, padding: 20 },
-	welcome: {
-		marginBottom: 12,
-		fontSize: 26,
-		textAlign: "center",
-		fontWeight: "600"
-	},
-	actions: {
-		marginBottom: 16
-	},
-	buttonGroup: {
-		marginTop: 10,
-		width: "100%",
-	},
-	buttonItem: {
-		marginVertical: 6,
-		borderRadius: 40
-	},
+	welcome: { marginBottom: 12, fontSize: 26, textAlign: "center", fontWeight: "600" },
+	actions: { marginBottom: 16 },
+	buttonGroup: { marginTop: 10, width: "100%" },
+	buttonItem: { marginVertical: 6, borderRadius: 40 },
 	input: {
 		width: "100%",
 		alignSelf: "center",

@@ -1,69 +1,63 @@
-import { StyleSheet, View, Text, Pressable, Alert } from "react-native";
-import { FontAwesome, MaterialIcons } from '@expo/vector-icons'
-import { useEffect, useState } from "react";
-import { doc, updateDoc, db, deleteDoc } from '../services/firebaseConfig'
+import React from "react";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { MaterialIcons } from "@expo/vector-icons";
+import { useTheme } from "../context/ThemeContext";
+import { auth, db } from "../services/firebaseConfig";
+import { doc, updateDoc, deleteDoc } from "firebase/firestore";
 
-export default function ItemLoja(props: any) {
-    const [isChecked, setIsChecked] = useState(props.isChecked)
+type Props = { id: string; nomeProduto: string; isChecked: boolean };
 
-    const updateIsChecked = async () => {
-        const produtoRef = doc(db, 'items', props.id)
+export default function ItemLoja({ id, nomeProduto, isChecked }: Props) {
+    const { colors, theme } = useTheme();
+    const isLight = theme === "light";
 
-        await updateDoc(produtoRef, {
-            isChecked: isChecked
-        })
-    }
+    const uid = auth.currentUser?.uid!;
+    const path = doc(db, "users", uid, "tasks", id);
 
-    const deleteProduto = async () => {
-        Alert.alert("Deseja Excluir?", "Essa ação não poderá ser desfeita", [
-            { text: 'Cancelar' },
-            {
-                text: 'Excluir',
-                onPress: async () => await deleteDoc(doc(db, 'items', props.id))
-            }
-        ],{cancelable:true})
+    const toggle = async () => {
+        try { await updateDoc(path, { isChecked: !isChecked }); }
+        catch (e) { console.log("Erro ao alternar item", e); }
+    };
 
-    }
-
-    useEffect(() => {
-        updateIsChecked()
-    }, [isChecked])
+    const remove = async () => {
+        try { await deleteDoc(path); }
+        catch (e) { console.log("Erro ao deletar item", e); }
+    };
 
     return (
-        <View style={styles.container}>
-            <Pressable onPress={() => setIsChecked(!isChecked)}>
-                {isChecked ? (
-                    <FontAwesome name='check-circle' size={24} color='black' />
-                ) : (
-                    <FontAwesome name='check-circle-o' size={24} color='black' />
-                )}
+        <View style={[
+            styles.card,
+            { backgroundColor: isLight ? "#fff" : "#181818", borderColor: isLight ? "#E5E7EB" : "#333" },
+        ]}>
+            <TouchableOpacity onPress={toggle} style={styles.left}>
+                <MaterialIcons
+                    name={isChecked ? "check-box" : "check-box-outline-blank"}
+                    size={24}
+                    color={colors.primary}
+                />
+                <Text
+                    style={[
+                        styles.title,
+                        { color: colors.text, textDecorationLine: isChecked ? "line-through" : "none", opacity: isChecked ? 0.6 : 1 },
+                    ]}
+                >
+                    {nomeProduto}
+                </Text>
+            </TouchableOpacity>
 
-
-            </Pressable>
-            <Text style={styles.texto}>{props.nomeProduto}</Text>
-            <Pressable onPress={deleteProduto}>
-                <MaterialIcons name='delete' size={24} color='black' />
-            </Pressable>
+            <TouchableOpacity onPress={remove} style={styles.deleteBtn}>
+                <MaterialIcons name="delete" size={22} color={isLight ? "#111" : "#fff"} />
+            </TouchableOpacity>
         </View>
-    )
+    );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flexDirection: 'row',
-        backgroundColor: 'lightgray',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        width: '90%',
-        alignSelf: 'center',
-        marginTop: 10,
-        padding: 10,
-        borderRadius: 10
+    card: {
+        flexDirection: "row", alignItems: "center", borderWidth: 1,
+        borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginVertical: 6,
     },
-    texto: {
-        flex: 1,
-        marginLeft: 10,
-        fontSize: 17,
-        fontWeight: 500
-    }
-})
+    left: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
+    title: { fontSize: 16, fontWeight: "600" },
+    deleteBtn: { padding: 8, borderRadius: 8 },
+});

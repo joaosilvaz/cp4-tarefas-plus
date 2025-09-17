@@ -2,29 +2,11 @@
   "expo": {
     "name": "cp4-tarefas-plus",
     "slug": "cp4-tarefas-plus",
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
-    "ios": {
-      "supportsTablet": true
-    },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
-    },
-    "web": {
-      "favicon": "./assets/favicon.png"
+    "scheme": "cp4tarefasplus",
+    "android": { "package": "com.joaov.cp4tarefasplus" },
+    "ios": { "bundleIdentifier": "com.joaov.cp4tarefasplus" },
+    "extra": {
+      "googleWebClientId": "870502752857-i2ntk1es392la0cr9v9jgdm0j0gdfius.apps.googleusercontent.com"
     }
   }
 }
