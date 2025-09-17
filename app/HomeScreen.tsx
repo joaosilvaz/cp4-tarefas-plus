@@ -35,7 +35,7 @@ type Task = {
 	title: string;
 	description: string;
 	completed: boolean;
-	dueDate: string; // ISO
+	dueDate: string;
 };
 
 export default function HomeScreen() {
@@ -111,33 +111,26 @@ export default function HomeScreen() {
 
 			const tTitle = title.trim();
 			const desc = description.trim();
-
-			// "YYYY-MM-DD HH:mm" -> ISO Z
-			const norm = dueDate.trim().replace(" ", "T");
-			const iso = new Date(norm).toISOString();
+			const iso = toIsoZ(dueDate); // sua função que transforma "YYYY-MM-DD HH:mm" em ISO
 
 			if (!tTitle || !desc || !iso) {
-				return Alert.alert("Atenção", "Preencha Título, Descrição e Data (ex: 2025-09-10 14:00).");
+				return Alert.alert(
+					"Atenção",
+					"Preencha Título, Descrição e Data (ex: 2025-09-10 14:00)."
+				);
 			}
 
-			// agenda notificação
-			const notificationId = await scheduleTaskReminder({
-				title: tTitle,
-				body: desc,
-				dueDateISO: iso,
-			});
-
-			// cria documento **com** notificationId
 			await addDoc(userTasksCol(uid), {
 				userId: uid,
 				title: tTitle,
 				description: desc,
 				completed: false,
-				dueDate: iso,                       // string ISO
-				notificationId,                    // <- salvo junto
+				dueDate: iso,
 				createdAt: serverTimestamp(),
 				updatedAt: serverTimestamp(),
 			});
+
+			await scheduleTaskReminder(tTitle, iso);
 
 			setTitle("");
 			setDescription("");
