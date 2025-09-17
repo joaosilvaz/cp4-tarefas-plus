@@ -1,70 +1,95 @@
+import React, { useEffect, useRef, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
-	Text, TextInput, StyleSheet, ActivityIndicator, FlatList,
-	KeyboardAvoidingView, Platform, View, Alert,
+	Text,
+	TextInput,
+	StyleSheet,
+	ActivityIndicator,
+	FlatList,
+	KeyboardAvoidingView,
+	Platform,
+	View,
+	Alert,
+	TouchableOpacity,
 } from "react-native";
 import { useRouter } from "expo-router";
-import ItemLoja from "../src/components/ItemLoja";
-import { useEffect, useState } from "react";
+import * as Notifications from "expo-notifications";
+import { onSnapshot, query, orderBy, serverTimestamp } from "firebase/firestore";
 import { deleteUser } from "firebase/auth";
+
+import TaskItem from "../src/components/TaskItem";
 import ThemedButton from "../src/components/ThemedButton";
+import QuoteCard from "../src/components/QuoteCard";
+
 import { auth, addDoc } from "../src/services/firebaseConfig";
 import { userTasksCol } from "../src/services/firestorePaths";
+
 import { useAuth } from "../src/context/AuthContext";
-import ThemeToggleButton from "../src/components/ThemeToggleButton";
 import { useTheme } from "../src/context/ThemeContext";
 import { useTranslation } from "react-i18next";
-import * as Notifications from "expo-notifications";
-import { onSnapshot, query, orderBy } from "firebase/firestore";
+import { setupNotifications, scheduleTaskReminder } from "../src/services/notifications";
 
-type Item = { id: string; nomeProduto: string; isChecked: boolean };
+
+type Task = {
+	id: string;
+	title: string;
+	description: string;
+	completed: boolean;
+	dueDate: string; // ISO
+};
 
 export default function HomeScreen() {
 	const { t } = useTranslation();
-	const { colors } = useTheme();
-	const { user, signOut } = useAuth();
+	const { colors, theme } = useTheme();
+	const { signOut: signOutUser } = useAuth();
 	const router = useRouter();
 
-	const [nomeProduto, setNomeProduto] = useState("");
-	const [listaItems, setListaItems] = useState<Item[]>([]);
+	const [title, setTitle] = useState("");
+	const [description, setDescription] = useState("");
+	const [dueDate, setDueDate] = useState(""); // ex: 2025-09-10 14:00
+
+	const [tasks, setTasks] = useState<Task[]>([]);
 	const [loadingList, setLoadingList] = useState(true);
+	const unsubRef = useRef<null | (() => void)>(null);
 
 	const realizarLogoff = async () => {
 		try {
-			await signOut();
+			// para de escutar o Firestore antes de sair
+			unsubRef.current?.();
+			unsubRef.current = null;
+
+			// desmonta a lista pra não renderizar TaskItem com userId indefinido
+			setTasks([]);
+			setLoadingList(true);
+
+			await signOutUser();
 			router.replace("/");
-		} catch (error) {
-			console.error("Erro ao fazer logout:", error);
-			Alert.alert(t("error") || "Erro", t("logoutError") || "Erro ao fazer logout");
+		} catch (error: any) {
+			Alert.alert("Erro", error?.message || "Erro ao fazer logout");
 		}
 	};
 
 	const excluirConta = () => {
 		Alert.alert(
-			t("confirmDelete") || "Confirmar Exclusão",
-			t("confirmDeleteMessage") ||
+			"Confirmar Exclusão",
 			"Tem certeza que deseja excluir sua conta? Essa ação não poderá ser desfeita.",
 			[
-				{ text: t("cancel") || "Cancelar", style: "cancel" },
+				{ text: "Cancelar", style: "cancel" },
 				{
-					text: t("delete") || "Excluir",
+					text: "Excluir",
 					style: "destructive",
 					onPress: async () => {
 						try {
 							const currentUser = auth.currentUser;
 							if (currentUser) {
 								await deleteUser(currentUser);
-								Alert.alert(
-									t("accountDeleted") || "Conta Excluída",
-									t("accountDeletedMessage") || "Sua conta foi excluída com sucesso."
-								);
+								Alert.alert("Conta Excluída", "Sua conta foi excluída com sucesso.");
 								router.replace("/");
 							} else {
-								Alert.alert("Error", "Nenhum usuário logado");
+								Alert.alert("Erro", "Nenhum usuário logado");
 							}
-						} catch (error) {
-							console.log("Erro ao excluir conta");
-							Alert.alert("Error", "Não foi possível excluir a conta");
+						} catch {
+							Alert.alert("Erro", "Não foi possível excluir a conta");
 						}
 					},
 				},
@@ -72,24 +97,54 @@ export default function HomeScreen() {
 		);
 	};
 
-	const salvarItem = async () => {
+	const toIsoZ = (raw: string) => {
+		const norm = raw.trim().replace(" ", "T"); // "YYYY-MM-DD HH:mm" -> "YYYY-MM-DDTHH:mm"
+		const d = new Date(norm);
+		if (isNaN(d.getTime())) return null;
+		return d.toISOString();
+	};
+
+	const salvarTask = async () => {
 		try {
 			const uid = auth.currentUser?.uid;
 			if (!uid) return Alert.alert("Erro", "Usuário não autenticado.");
-			const nome = nomeProduto.trim();
-			if (!nome) return;
 
-			await addDoc(userTasksCol(uid), {
-				userId: uid,
-				nomeProduto: nome,
-				isChecked: false,
-				createdAt: Date.now(),
+			const tTitle = title.trim();
+			const desc = description.trim();
+
+			// "YYYY-MM-DD HH:mm" -> ISO Z
+			const norm = dueDate.trim().replace(" ", "T");
+			const iso = new Date(norm).toISOString();
+
+			if (!tTitle || !desc || !iso) {
+				return Alert.alert("Atenção", "Preencha Título, Descrição e Data (ex: 2025-09-10 14:00).");
+			}
+
+			// agenda notificação
+			const notificationId = await scheduleTaskReminder({
+				title: tTitle,
+				body: desc,
+				dueDateISO: iso,
 			});
 
-			setNomeProduto("");
+			// cria documento **com** notificationId
+			await addDoc(userTasksCol(uid), {
+				userId: uid,
+				title: tTitle,
+				description: desc,
+				completed: false,
+				dueDate: iso,                       // string ISO
+				notificationId,                    // <- salvo junto
+				createdAt: serverTimestamp(),
+				updatedAt: serverTimestamp(),
+			});
+
+			setTitle("");
+			setDescription("");
+			setDueDate("");
 		} catch (e: any) {
 			console.log("Erro ao salvar:", e?.code ?? e?.message ?? e);
-			Alert.alert("Erro", "Não foi possível salvar o item.");
+			Alert.alert("Erro", "Não foi possível salvar a tarefa.");
 		}
 	};
 
@@ -99,6 +154,7 @@ export default function HomeScreen() {
 		);
 		return () => sub.remove();
 	}, []);
+
 	useEffect(() => {
 		(async () => {
 			const { status } = await Notifications.getPermissionsAsync();
@@ -114,15 +170,17 @@ export default function HomeScreen() {
 		const unsub = onSnapshot(
 			q,
 			(snap) => {
-				const tasks: Item[] = snap.docs.map((d) => {
+				const rows: Task[] = snap.docs.map((d) => {
 					const data = d.data() as any;
 					return {
 						id: d.id,
-						nomeProduto: String(data?.nomeProduto ?? ""),
-						isChecked: Boolean(data?.isChecked),
+						title: String(data?.title ?? ""),
+						description: String(data?.description ?? ""),
+						completed: Boolean(data?.completed),
+						dueDate: String(data?.dueDate ?? ""),
 					};
 				});
-				setListaItems(tasks);
+				setTasks(rows);
 				setLoadingList(false);
 			},
 			(err) => {
@@ -130,51 +188,95 @@ export default function HomeScreen() {
 				setLoadingList(false);
 			}
 		);
-		return () => unsub();
+		unsubRef.current = unsub;
+		return () => {
+			unsub();
+			unsubRef.current = null;
+		};
+	}, []);
+
+	useEffect(() => {
+		setupNotifications();
 	}, []);
 
 	return (
 		<SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+			{/* FAB de logout: emoji no canto superior direito */}
+			<TouchableOpacity
+				onPress={realizarLogoff}
+				style={[
+					styles.logoutFab,
+					{
+						backgroundColor: theme === "light" ? "#00000010" : "#ffffff10",
+						borderColor: theme === "light" ? "#00000020" : "#ffffff20",
+					},
+				]}
+				accessibilityLabel="Sair"
+			>
+				<Text style={{ fontSize: 20 }}>➜]</Text>
+			</TouchableOpacity>
+
 			<KeyboardAvoidingView
 				style={styles.container}
 				behavior={Platform.OS === "ios" ? "padding" : "height"}
 				keyboardVerticalOffset={20}
 			>
-				<Text style={[styles.welcome, { color: colors.text }]}>
-					Seja bem-vindo, você está logado!
-				</Text>
+				<Text style={[styles.welcome, { color: colors.text }]}>Suas tarefas</Text>
 
 				<TextInput
-					placeholder="Digite o nome do produto"
+					placeholder="Título da tarefa"
 					placeholderTextColor="#6B7280"
 					style={[styles.input, { backgroundColor: "lightgray", color: colors.text }]}
-					value={nomeProduto}
-					onChangeText={setNomeProduto}
-					onSubmitEditing={salvarItem}
+					value={title}
+					onChangeText={setTitle}
+					returnKeyType="next"
+				/>
+				<TextInput
+					placeholder="Descrição"
+					placeholderTextColor="#6B7280"
+					style={[styles.input, { backgroundColor: "lightgray", color: colors.text }]}
+					value={description}
+					onChangeText={setDescription}
+					returnKeyType="next"
+				/>
+				<TextInput
+					placeholder="Data (ex: 2025-09-10 14:00)"
+					placeholderTextColor="#6B7280"
+					style={[styles.input, { backgroundColor: "lightgray", color: colors.text }]}
+					value={dueDate}
+					onChangeText={setDueDate}
+					onSubmitEditing={salvarTask}
 					returnKeyType="done"
 				/>
+
+				<View style={{ marginTop: 8, marginBottom: 12 }}>
+					<ThemedButton title="Adicionar tarefa" onPress={salvarTask} />
+				</View>
 
 				{loadingList ? (
 					<ActivityIndicator />
 				) : (
 					<FlatList
-						data={listaItems}
+						data={tasks}
 						keyExtractor={(item) => item.id}
 						contentContainerStyle={{ paddingVertical: 8 }}
 						renderItem={({ item }) => (
-							<ItemLoja
+							<TaskItem
 								id={item.id}
-								nomeProduto={item.nomeProduto}
-								isChecked={item.isChecked}
+								title={item.title}
+								description={item.description}
+								completed={item.completed}
+								dueDate={item.dueDate}
 							/>
 						)}
 					/>
 				)}
 
+
 				<View style={styles.actions}>
 					<View style={styles.buttonGroup}>
-						<View style={styles.buttonItem}>
-							<ThemedButton title="Realizar logoff" onPress={realizarLogoff} />
+						<View style={{ marginBottom: 0 }}>
+							<QuoteCard />
 						</View>
 						<View style={styles.buttonItem}>
 							<ThemedButton
@@ -183,40 +285,54 @@ export default function HomeScreen() {
 							/>
 						</View>
 						<View style={styles.buttonItem}>
-							<ThemedButton title="Excluir" onPress={excluirConta} />
-						</View>
-						<View style={styles.buttonItem}>
-							<ThemedButton
-								title="Disparar notificação"
-								onPress={async () =>
-									Notifications.scheduleNotificationAsync({
-										content: { title: "Promoções do dia!", body: "Aproveite as melhores ofertas!!" },
-										trigger: { type: "timeInterval", seconds: 2, repeats: false } as Notifications.TimeIntervalTriggerInput,
-									})
-								}
-							/>
+							<ThemedButton title="Excluir conta" onPress={excluirConta} />
 						</View>
 					</View>
 				</View>
 			</KeyboardAvoidingView>
-
-			<ThemeToggleButton />
 		</SafeAreaView>
 	);
 }
 
 const styles = StyleSheet.create({
-	container: { flex: 1, padding: 20 },
-	welcome: { marginBottom: 12, fontSize: 26, textAlign: "center", fontWeight: "600" },
-	actions: { marginBottom: 16 },
-	buttonGroup: { marginTop: 10, width: "100%" },
-	buttonItem: { marginVertical: 6, borderRadius: 40 },
+	container: {
+		flex: 1,
+		padding: 20
+	},
+	welcome: {
+		marginBottom: 12,
+		fontSize: 26,
+		textAlign: "center",
+		fontWeight: "600"
+	},
+	actions: {
+		marginTop: 0,
+		marginBottom: 16
+	},
+	buttonGroup: {
+		marginTop: 10,
+		width: "100%"
+	},
+	buttonItem: {
+		marginVertical: 6,
+		borderRadius: 40
+	},
 	input: {
 		width: "100%",
 		alignSelf: "center",
-		marginTop: 16,
+		marginTop: 10,
 		borderRadius: 10,
 		paddingHorizontal: 16,
 		paddingVertical: 12,
+	},
+	logoutFab: {
+		position: "absolute",
+		top: 40,
+		right: 12,
+		zIndex: 20,
+		paddingVertical: 6,
+		paddingHorizontal: 10,
+		borderRadius: 10,
+		borderWidth: 1,
 	},
 });
